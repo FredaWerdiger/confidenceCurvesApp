@@ -81,29 +81,30 @@ ui <- fluidPage(
         tabPanel("Confidence Analysis",
               textOutput("benefit_text"),
               textOutput("lmb_text"),
+              tableOutput("results_table"),
+              tableOutput("lmb_table"),
               tags$head(tags$style("#benefit_text{
                            font-size:20px;
                            color:blue;}",
                            "#lmb_text{
                            font-size:20px;
                            color:red;}",))
-      ),
-      tabPanel(
+              ),
+        tabPanel(
         "Confidence distribution plot",
         plotOutput("confPlot"),
         strong('INTERPRETATION'),
-        textOutput("confPlotText")
-      ),
-      tabPanel(
+        textOutput("confPlotText")  
+        ),
+        tabPanel(
         "Confidence density plot",
         plotOutput("curvePlot")
-      ),
-      tabPanel(
+        ),
+        tabPanel(
         "Confidence Curve",
         plotOutput("confc")
-      ),
-      
-      tabPanel(
+        ),
+        tabPanel(
         "Null distribution plot",
         plotOutput("nullPlot")
       ),
@@ -147,16 +148,19 @@ server <- function(input, output) {
   
   output$summary <- renderUI({
     req((input$thetaType == 1 && is.numeric(input$oddsr)) ||
-          (input$thetaType == 2 && is.numeric(input$riskd)))
+          (input$thetaType == 2 && is.numeric(input$riskd)) ||
+          (input$thetaType == 3 && is.numeric(input$meand)) || 
+          (input$thetaType == 4 && is.numeric(input$riskr)))
     
     data.type = list("binary", "continuous", "ordinal")
     benefit = list("less", "more")
     theta.type = list("Odds Ratio", "Risk Difference", "Difference of Means", "Risk Ratio")
+    theta = list(input$oddsr, input$riskd, input$meand, input$riskr)
     
     span(paste0("Your response data is ", 
                 data.type[[as.numeric(input$type)]], " and group difference is expressed via a ",
                 theta.type[[as.numeric(input$thetaType)]],
-                ", here ",input$oddsr, 
+                ", here ",theta[[as.numeric(input$thetaType)]], 
                ". On the linear (not log) scale, ",
                input$neutral.effect, " means no group difference, and a value ", 
                benefit[[as.numeric(input$dir.benefit) + 1]],
@@ -203,21 +207,34 @@ server <- function(input, output) {
       ci_upper=input$ci_upper
     }
     
+    # TODO: make this more efficient
+    # TODO: Fix error estimations
+    
     if (input$thetaType ==1){
       theta = log(input$oddsr)
+      min.effect = log(input$neutral.effect +  input$lmb/100)
+      min.effects =  log(input$neutral.effect + seq(1,10)/100)
       neutral.effect = log(input$neutral.effect)
     } else if (input$thetaType == 2){
       theta = input$riskd
       neutral.effect = input$neutral.effect
+      min.effect = neutral.effect + input$lmb/100
+      min.effects = neutral.effect + seq(1,10)/100
     } else if (input$thetaType == 3){
       theta = input$meand
       neutral.effect = input$neutral.effect
+      min.effect = neutral.effect + input$lmb/100
+      min.effects = neutral.effect + seq(1,10)/100
     } else {
       theta = log(input$riskr)
+      min.effect = log(input$neutral.effect +  input$lmb/100)
+      min.effects =  log(input$neutral.effect + seq(1,10)/100)
       neutral.effect = log(input$neutral.effect)}
     
     # Compute confidence curves
 
+    df <- data.frame()
+    
     cc <- confidenceCurves::makeConfidenceCurves(theta.estimator = theta,
                                                  sample.size = sample.size,
                                                  treat.var = log(input$sd) ** 2,
@@ -228,8 +245,27 @@ server <- function(input, output) {
                                                  show=input$show,
                                                  return.plot=TRUE,
                                                  neutral.effect = neutral.effect,
-                                                 min.effect=log(1 + input$lmb/100)
+                                                 min.effect=min.effect
                                                  )
+    
+    # get dataframe by varying lmb
+    
+    for (i in 1:10){
+      list.out <- confidenceCurves::makeConfidenceCurves(theta.estimator = theta,
+                                             sample.size = sample.size,
+                                             treat.var = log(input$sd) ** 2,
+                                             confidence.upper = ci_upper,
+                                             confidence.lower = ci_lower,
+                                             standard.error = standard.error,
+                                             dir.benefit = input$dir.benefit,
+                                             show=input$show,
+                                             return.plot=FALSE,
+                                             neutral.effect = neutral.effect,
+                                             min.effect=min.effects[[i]]
+      )
+      
+      df <- rbind(df, data.frame(min.meaningful.effect=i/100, conf.lack.meaningful.benefit=list.out$conf.lack.meaningful.benefit))
+    }
     
     output$benefit_text <- renderText({
       paste("Confidence in benefit: ", round(cc$text$conf.benefit * 100, 3), "%")
@@ -264,6 +300,8 @@ server <- function(input, output) {
       plot(cc$null, main = "Confidence Curves")
     })
     
+    output$lmb_table <- renderTable(df)
+    output$results_table <- renderTable(cc$text)
     
   })
 }

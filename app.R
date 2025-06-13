@@ -1,15 +1,16 @@
 # Install required packages if not already installed
 if (!require(shiny)) install.packages("shiny")
+if (!require(shinydashboard)) install.packages("shinydashboard")
 if (!require(devtools)) install.packages("devtools")
 if (!require(confidenceCurves)) devtools::install_github("FredaWerdiger/confidenceCurves")
 
 library(shiny)
+library(shinydashboard)
 library(confidenceCurves)
 
 # Define UI
 ui <- fluidPage(
   titlePanel("Confidence Curves"),
-  
   sidebarLayout(
      sidebarPanel(
       h3("Data"),
@@ -20,16 +21,37 @@ ui <- fluidPage(
                    selected = 3,
                    inline=FALSE),
       h3("Point Estimate"),
+      
+      # if data is binary, user has option of directly putting in data
       conditionalPanel(
         condition = "input.type == 1",
         radioButtons("binaryOpt", "Calculate point estimate?",
                     choices = list("Yes" = 1,
-                                   "No" = 1))
+                                   "No" = 2),
+                    selected = 2),
+        conditionalPanel(
+          condition = "input.binaryOpt == 1",
+          fluidRow(
+            box(
+              title="Binary outcome data",
+              width=12,
+              fluidRow(
+                column( width = 6,
+                        numericInput("numgroup1", "Subjects in Group 1:", value=NULL),
+                        numericInput("numgroup2", "Subjects in Group 2:", value=NULL)
+                        ),
+                column(width=6,
+                       numericInput("outcomesgroup1", "Outcomes in Group 1:", value=NULL),
+                       numericInput("outcomesgroup2", "Outcomes in Group 2:", value=NULL)
+                       )
+                )
+              )
+            )
         )
       ),
+      # TODO: calculate point estimate from binary data
       selectInput("thetaType", "Select method of effect estimation", choice=list(
-        "Odds Ratio"=1, "Risk Difference"=2, "Mean Difference"=3, "Risk Ratio"=4
-      ), selected = 1),
+        "Odds Ratio"=1, "Risk Difference"=2), selected = 1),
       conditionalPanel(
         condition = "input.thetaType == 1",
         numericInput("oddsratio", "Odds Ratio Value:", value=0.81)
@@ -38,22 +60,26 @@ ui <- fluidPage(
         condition = "input.thetaType == 2",
         numericInput("riskdiff", "Risk Difference Value:", value=NULL)
       ),
+      # below functionality have not yet been added
       # conditionalPanel(
       #   condition = "input.thetaType == 3",
-      #   numericInput("meand", "Mean Difference Value:", value=NULL)
+      #   numericInput("meandiff", "Mean Difference Value:", value=NULL)
       # ),
       # conditionalPanel(
       #   condition = "input.thetaType == 4",
-      #   numericInput("riskr", "Risk Ratio Value:", value=NULL)
+      #   numericInput("riskratio", "Risk Ratio Value:", value=NULL)
       # ),
       uiOutput("theta_error"),
       numericInput("neutral.effect", "Define a neutral treatment effect:", value=1),
 
       uiOutput("neutral_error"),
-      radioButtons("dir.benefit", "Describe a positive treatment effect:",
-                   choices=list("Lower is better"=0, "Higher is better"=1),
-                   selected = 0, inline=FALSE),
-      numericInput("lmb", "Define the lowest meaningful benefit (%)", value=5, min=0, max=100),
+      
+      # below is not in use
+      # radioButtons("dir.benefit", "Describe a positive treatment effect:",
+      #              choices=list("Lower is better"=0, "Higher is better"=1),
+      #               selected = 0, inline=FALSE),
+      # numericInput("lmb", "Define the smallest clinically  meaningful effect", 
+      #              value=0.1, min=-10, max=10),
       strong("DESCRIPTION OF OUTCOME MEASUREMENT SCALE"),
       uiOutput("summary_scale"),
       h3("Error estimate"),
@@ -61,7 +87,7 @@ ui <- fluidPage(
                   choice=list("95% Confidence Interval"=1,
                               "Standard Deviation (σ)"=2,
                               "Standard error"=3),
-                  selected=2),
+                  selected=1),
       conditionalPanel(
         condition = "input.errorType == 2",  # Show when "Standard Deviation" is selected
         numericInput("sd", "Standard Deviation (σ):", value = 10),
@@ -69,22 +95,58 @@ ui <- fluidPage(
       ),
       conditionalPanel(
         condition = "input.errorType == 1",
-        numericInput("ci_lower", "Lower Bound of 95% CI:", value = NULL),
-        numericInput("ci_upper", "Upper Bound of 95% CI:", value = NULL)
+        numericInput("ci_lower", "Lower Bound of 95% CI:", value = 0.70),
+        numericInput("ci_upper", "Upper Bound of 95% CI:", value = 0.93)
       ),
       conditionalPanel(
         condition = "input.errorType == 3",
-        numericInput("se", "Standard Error:", value=NULL),
+        numericInput("se", "Standard Error:", value=1.073),
       ),
       uiOutput("error_error"),
       strong("DESCRIPTION OF POINT ESTIMATE:"),
       uiOutput("summary_value"),
+      h3("Confidence Threshold settings"),
+      h6("Here you can enter two thresholds of interest and select whether you want to express confidence
+                   in the treatment effect being above or below these thresholds."),
+      fluidRow(
+        box(
+          width = 12,
+          fluidRow(
+            column(width=6,
+                   numericInput(
+                     "neutral.effect", "Threshold 1",
+                     value=1)
+                   ),
+            column(width=6,
+                   radioButtons(
+                     "dir.benefit", "Confidence in Above or Below this?",
+                     choices = list("Above"= 1, "Below"=0),
+                     selected = 0)
+            )
+          ),
+          fluidRow(
+            column(width=6,
+                   numericInput(
+                     "min.effect", "Threshold 2",
+                     value = 0.95)
+            ),
+            column(width=6,
+                   radioButtons(
+                     "min.effect.dir", "Confidence in Above or Below this?",
+                     choices = list("Above" = 1, "Below" = 2),
+                     selected = 1
+                   )
+            )
+          )
+        )
+      ),
       h3("Confidence curve settings"),
-      selectInput("show", "Select what to display on the confidence density plot:", 
-                  choices=list("Benefit"="BENEFIT", "Lack of Meaningful Benefit"="LMB"),
+      selectInput("show", "Select which threshold to display on confidence density plot:", 
+                  choices=list("Threshold 1" = "BENEFIT", "Threshold 2" = "LMB"),
                   selected="BENEFIT"),
 
-      actionButton("generate", "Generate Confidence Curve")
+      actionButton("generate", "Generate Confidence Curve"),
+      width=4
       ),
     mainPanel(
       tabsetPanel(
@@ -127,6 +189,7 @@ ui <- fluidPage(
 )
 )
 
+
 # Define Server
 server <- function(input, output) {
   
@@ -138,8 +201,8 @@ server <- function(input, output) {
     
     if( (input$thetaType == 1 & !is.numeric(input$oddsratio)) ||
         (input$thetaType == 2 & !is.numeric(input$riskdiff)) ||
-        (input$thetaType == 3 & !is.numeric(input$meand)) ||
-        (input$thetaType == 4 & !is.numeric(input$riskr))) {
+        (input$thetaType == 3 & !is.numeric(input$meandiff)) ||
+        (input$thetaType == 4 & !is.numeric(input$riskratio))) {
       span(paste0("Please enter a value for ", 
                   theta.type[[as.numeric(input$thetaType)]], "."), style = "color:red;")
     } else {
@@ -169,7 +232,8 @@ server <- function(input, output) {
         (input$thetaType == 2 & input$neutral.effect == 1) ||
         (input$thetaType == 3 & input$neutral.effect == 1) ||
         (input$thetaType == 4 & input$neutral.effect == 0)){
-      span("Warning: Values are not on the log scale. There may be an error with your value for neutral effect.",
+      span("Warning: Values are not on the log scale.
+           There may be an error with your value for neutral effect.",
            style = "color:orange;")
     }
   })
@@ -179,43 +243,40 @@ server <- function(input, output) {
     
     data.type = list("binary", "continuous", "ordinal")
     benefit = list("less", "more")
-    theta.type = list("Odds Ratio", "Risk Difference") 
-    #, "Difference of Means", "Risk Ratio") # arent added yet
+    theta.type = list("Odds Ratio", "Risk Difference",
+                      "Difference of Means", "Risk Ratio") 
 
     span(paste0("Your response outcome is ", 
                 data.type[[as.numeric(input$type)]], ". Group difference is expressed via the ",
                 theta.type[[as.numeric(input$thetaType)]],
                ", expressed on the linear (not log) scale so that a value of ",
-               input$neutral.effect, " indicates a neutral treatment effect. You indicated that a value ", 
-               benefit[[as.numeric(input$dir.benefit) + 1]],
-               " than this indicates benefit to treatment over control.")
+               input$neutral.effect, " indicates a neutral treatment effect.")
+               # You indicated that a value ", 
+               # benefit[[as.numeric(input$dir.benefit) + 1]],
+               # " than this indicates benefit to treatment over control.")
          , style = "color:blue")
 
 
   })
   
   output$summary_value <- renderUI({
-    req((input$thetaType == 1 && is.numeric(input$oddsr)) ||
-          (input$thetaType == 2 && is.numeric(input$riskd)) ||
-          (input$thetaType == 3 && is.numeric(input$meand)) || 
-          (input$thetaType == 4 && is.numeric(input$riskr)))
     
-    theta = list(input$oddsr, input$riskd, input$meand, input$riskr)
+    theta = list(input$oddsratio, input$riskdiff, input$meandiff, input$riskratio)
     errorType = list("95% confidence interval","standard deviation", "standard error")
     errorValue = list(paste0("[", input$ci_lower, ",", input$ci_upper, "]"), 
                  input$sd,
                  input$se)
     
     span(paste0("Your point estimate is ", theta[[as.numeric(input$thetaType)]], ".",
-                " Error is measured using the ", errorType[[as.numeric(input$errorType)]],
-                ": ", errorValue[[as.numeric(input$errorType)]]), style = "color:blue")
+                " Error is measured using a ", errorType[[as.numeric(input$errorType)]],
+                ", here ", errorValue[[as.numeric(input$errorType)]], "."), style = "color:blue")
     
   })
   
   observeEvent(input$generate, {
     
     # Check if Odds Ratio is missing when thetaType is 1
-    if (input$thetaType == 1 && !is.numeric(input$oddsr)) {
+    if (input$thetaType == 1 && !is.numeric(input$oddsratio)) {
       showNotification("Please enter Odds Ratio value.", type = "error")
       return()  # Exit without proceeding
     }
@@ -240,6 +301,15 @@ server <- function(input, output) {
       }
     }
     
+    if (!is.numeric(input$sd)){
+      var = NULL
+    } else {
+      var = input$sd ** 2
+      if (input$thetaType %in% c(1,4)){
+        var = log(var)
+      }
+    }
+    
     if (!is.numeric(input$ci_lower)){
       ci_lower = NULL
     } else {
@@ -259,25 +329,29 @@ server <- function(input, output) {
     }
     
     if (input$thetaType %in% c(1,4)){
-      min.effect = log(input$neutral.effect +  input$lmb/100)
+      min.effect = log(input$min.effect)
       min.effects =  log(input$neutral.effect + seq(1,10)/100)
       neutral.effect = log(input$neutral.effect)
     } else {
       neutral.effect = input$neutral.effect
-      min.effect = neutral.effect + input$lmb/100
+      min.effect = input$min.effect
       min.effects = neutral.effect + seq(1,10)/100
     }
     
     # thetas = c(input$oddsr, input$riskd, input$meand, input$riskr)
     
     if (input$thetaType ==1){
-      theta = log(input$oddsr)
+      theta = log(input$oddsratio)
     } else if (input$thetaType == 2){
-      theta = input$riskd
-    } else if (input$thetaType == 3){
-      theta = input$meand
-    } else {
-      theta = log(input$riskr)}
+      theta = input$riskdiff
+    } 
+    
+    # else if (input$thetaType == 3){
+    #   theta = input$meand
+    # } else {
+    #   theta = log(input$riskr)}
+    # 
+    
     
     # Compute confidence curves
 
@@ -286,7 +360,7 @@ server <- function(input, output) {
     cc <- confidenceCurves::makeConfidenceCurves(theta.estimator = theta,
                                                  estimator.type = input$thetaType,
                                                  sample.size = sample.size,
-                                                 treat.var = log(input$sd) ** 2,
+                                                 treat.var = var,
                                                  confidence.upper = ci_upper,
                                                  confidence.lower = ci_lower,
                                                  standard.error = standard.error,
@@ -317,11 +391,11 @@ server <- function(input, output) {
     }
     
     output$benefit_text <- renderText({
-      paste("Confidence in benefit: ", round(cc$text$conf.benefit * 100, 3), "%")
+      paste("Confidence in Threshold 1: ", round(cc$text$conf.benefit * 100, 3), "%")
       })
     
     output$lmb_text <- renderText({
-      paste("Confidence in lack of meaningful benefit: ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
+      paste("Confidence in Threshold 2: ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
     })
     
     output$curvePlot <- renderPlot({

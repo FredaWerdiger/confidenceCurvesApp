@@ -90,7 +90,7 @@ ui <- fluidPage(
                   selected=1),
       conditionalPanel(
         condition = "input.errorType == 2",  # Show when "Standard Deviation" is selected
-        numericInput("sd", "Standard Deviation (σ):", value = 10),
+        numericInput("sd", "Standard Deviation (σ):", value = 13.5),
         numericInput("n", "Sample Size:", value = 1035)
       ),
       conditionalPanel(
@@ -133,7 +133,7 @@ ui <- fluidPage(
             column(width=6,
                    radioButtons(
                      "min.effect.dir", "Confidence in Above or Below this?",
-                     choices = list("Above" = 1, "Below" = 2),
+                     choices = list("Above" = 1, "Below" = 0),
                      selected = 1
                    )
             )
@@ -162,13 +162,21 @@ ui <- fluidPage(
                            color:blue;}",
                            "#lmb_text{
                            font-size:20px;
-                           color:red;}",))
+                           color:forestgreen;}",))
               ),
         tabPanel(
         "Confidence distribution plot",
+        textOutput("benefit_text"),
+        textOutput("lmb_text"),
         plotOutput("confPlot"),
         strong('INTERPRETATION'),
-        textOutput("confPlotText")  
+        textOutput("confPlotText"),
+        tags$head(tags$style("#benefit_text{
+                           font-size:20px;
+                           color:blue;}",
+                             "#lmb_text{
+                           font-size:20px;
+                           color:forestgreen;}",))
         ),
         tabPanel(
         "Confidence density plot",
@@ -390,13 +398,30 @@ server <- function(input, output) {
       df <- rbind(df, data.frame("meaningful benefit"=i, conf.lack.meaningful.benefit=list.out$conf.lack.meaningful.benefit*100))
     }
     
-    output$benefit_text <- renderText({
-      paste("Confidence in Threshold 1: ", round(cc$text$conf.benefit * 100, 3), "%")
-      })
+    if (as.numeric(input$dir.benefit) == 0){
+        phr_1 <- paste("Conf(","\u03b8", " < Threshold 1): ", round(cc$text$conf.benefit * 100, 3), "%")
+      } else {
+        phr_1 <- paste("Conf(", "\u03b8", " > Threshold 1): ", round(cc$text$conf.benefit * 100, 3), "%")
+      }
     
-    output$lmb_text <- renderText({
-      paste("Confidence in Threshold 2: ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
-    })
+    output$benefit_text <- renderText({phr_1})
+    
+    if (as.numeric(input$dir.benefit) == 0){
+      if (input$min.effect.dir == 1){
+        phr_2 <- paste("Conf(","\u03b8", " > Threshold 2): ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
+      } else {
+        phr_2 <- paste("Conf(","\u03b8", " < Threshold 2): ", round(cc$text$conf.meaningful.benefit * 100, 3), "%")
+      }
+    } else {
+      if (input$min.effect.dir == 1){
+        phr_2 <- paste("Conf(","\u03b8", " > Threshold 2): ", round(cc$text$conf.meaningful.benefit * 100, 3), "%")
+      } else {
+        phr_2 <- paste("Conf(","\u03b8", " < Threshold 2): ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
+      }
+    }
+    
+    
+    output$lmb_text <- renderText({ phr_2 })
     
     output$curvePlot <- renderPlot({
       plot(cc$pdf, main = "Confidence Curves")
@@ -410,9 +435,12 @@ server <- function(input, output) {
       paste0("The Confidence distribution is constructed from all one-sided
               confidence intervals (0 - 100). The point estimate, here ",
              round(theta, 2), ", always sits at the edge of the 50% Confidence Interval.",
-             " The one-sided p-value is derived by subtracting Conf(BENEFIT), here ",
+             " The one-sided p-value is derived by subtracting Conf(","\u03b8", " < 0), here ",
              round(cc$text$conf.benefit, 4), 
-             ", from 1 and is displayed on the graph.")
+             ", from 1 and is displayed on the graph. The thresholds you have chosen are displayed in blue (Threshold 1)
+              and green (Threshold 2).
+             
+             ")
     })
     
     output$confc <- renderPlot({

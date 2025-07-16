@@ -37,8 +37,8 @@ ui <- fluidPage(
               width=12,
               fluidRow(
                 column( width = 6,
-                        numericInput("numgroup1", "Subjects in Group 1:", value=NULL),
-                        numericInput("numgroup2", "Subjects in Group 2:", value=NULL)
+                        numericInput("numgroup1", "Subjects in Group 1 (e.g., control):", value=NULL),
+                        numericInput("numgroup2", "Subjects in Group 2 (e.g., treatment):", value=NULL)
                         ),
                 column(width=6,
                        numericInput("outcomesgroup1", "Outcomes in Group 1:", value=NULL),
@@ -77,11 +77,6 @@ ui <- fluidPage(
       
       # error if point estimate was not specified
       uiOutput("theta_error"),
-      
-      # define a neutral effect
-      numericInput("neutral.effect", "Define a neutral treatment effect:", value=1),
-      # warning will display if seems wrong
-      uiOutput("neutral_error"),
       
       # below is not in use
       # radioButtons("dir.benefit", "Describe a positive treatment effect:",
@@ -284,12 +279,13 @@ server <- function(input, output) {
     benefit = list("less", "more")
     theta.type = list("Odds Ratio", "Risk Difference",
                       "Difference of Means", "Risk Ratio") 
+    neutral = c(1, 0, 0, 1)
 
     span(paste0("Your response outcome is ", 
                 data.type[[as.numeric(input$type)]], ". Group difference is expressed via the ",
                 theta.type[[as.numeric(input$thetaType)]],
                ", expressed on the linear (not log) scale so that a value of ",
-               input$neutral.effect, " indicates a neutral treatment effect.")
+               neutral[[as.numeric(input$thetaType)]], " indicates a neutral treatment effect.")
                # You indicated that a value ", 
                # benefit[[as.numeric(input$dir.benefit) + 1]],
                # " than this indicates benefit to treatment over control.")
@@ -531,11 +527,16 @@ server <- function(input, output) {
     })
     
     output$confPlotText <- renderText({
+     
+       if (neutral.effect != input$neutral.effect){
+        log.text = paste0(" (on the log scale)")
+      } else (log.text = "")
+      
       paste0("The Confidence distribution is constructed from all one-sided
               confidence intervals (0 - 100). The point estimate, here ",
-             round(theta, 2), ", always sits at the edge of the 50% Confidence Interval.",
+             signif(cc$text$mean, 4), log.text, ", always sits at the edge of the 50% Confidence Interval.",
              " The one-sided p-value is derived by subtracting Conf(","\u03b8", " < 0), here ",
-             round(cc$text$conf.benefit, 4), 
+             signif(cc$text$conf.benefit, 4), 
              ", from 1 and is displayed on the graph. The thresholds you have chosen are displayed in blue (Threshold 1)
               and green (Threshold 2) and the confidence levels concerning these thresholds are shown in colour-coded text.
              

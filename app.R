@@ -139,17 +139,26 @@ ui <- fluidPage(
             ),
             column(width=6,
                    radioButtons(
-                     "min.effect.dir", "Confidence in Above or Below this?",
+                     "dir.min.effect", "Confidence in Above or Below this?",
                      choices = list("Above" = 1, "Below" = 0),
                      selected = 1
                    )
             )
+          ),
+          fluidRow(
+            column(width=12,
+                   radioButtons(
+                     "conf.equiv", "Calculate Confidence that effect is between Thresholds 1 and 2?",
+                      choices = list("Yes" = 1, "No" = 0),
+                      selected = 0
+                    )
+                   )
+            )
           )
-        )
       ),
       h3("Confidence curve settings"),
       selectInput("show", "Select which threshold to display under the Confidence Density curve:", 
-                  choices=list("Threshold 1" = "BENEFIT", "Threshold 2" = "LMB"),
+                  choices=list("Threshold 1" = "BENEFIT", "Threshold 2" = "LMB", "Between 1 and 2" = "EQUIV"),
                   selected="BENEFIT"),
 
       actionButton("generate", "Generate Confidence Curve"),
@@ -164,6 +173,7 @@ ui <- fluidPage(
                  HTML("<br><br>"),
               textOutput("benefit_text"),
               textOutput("lmb_text"),
+              textOutput("equiv_text"),
               HTML("<br><br>") ,
               HTML("<u>"),
               strong("FULL OUTPUT OF CONFIDENCE CURVE FUNCTION"),
@@ -178,7 +188,10 @@ ui <- fluidPage(
                            color:blue;}",
                            "#lmb_text{
                            font-size:20px;
-                           color:forestgreen;}",))
+                           color:forestgreen;}",
+                           "#equiv_text{
+                           font-size:20px;
+                           color:darkorange;}",))
               ),
         tabPanel(
         "Confidence distribution plot",
@@ -433,19 +446,25 @@ server <- function(input, output) {
       }
     }
     
+    # what to show on the graph
+    # threshold one is constructed as benefit 
+    # if threshold two is in the same direction, it is meaningful benefit
+    # if it is in the opposite direction, it is lack of meaningful benefit
+    
     if (
-      (input$dir.benefit == input$min.effect.dir) &
+      (input$dir.benefit == input$dir.min.effect) &
       input$show == "LMB"){
       show = "MB"
     } else {
       show = input$show
     }
       
-    # what to show on the graph
-    # threshold one is constructed as benefit 
-    # if threshold two is in the same direction, it is meaninful benefit
-    # if it is in the opposite direction, it is lack of meaninful benefit
+    # equivalence
     
+    if (input$conf.equiv == 1){
+      equiv = c(min(neutral.effect, min.effect), 
+                max(neutral.effect, min.effect))
+    } else {equiv = NULL}
 
     # Compute confidence curves
 
@@ -466,34 +485,11 @@ server <- function(input, output) {
                                                  show=show,
                                                  return.plot=TRUE,
                                                  neutral.effect = neutral.effect,
-                                                 min.effect=min.effect
+                                                 min.effect=min.effect,
+                                                 dir.min.effect=input$dir.min.effect,
+                                                 equiv=equiv
                                                  )
     
-    # Below is to make a table with varying LMB
-    # this isn't part of the generalised version of the app
-    
-    # get dataframe by varying lmb
-    # for (i in 1:10){
-    #   list.out <- confidenceCurves::makeConfidenceCurves(theta.estimator = theta,
-    #                                                      num.ctrl = num.ctrl,
-    #                                                      num.trmt = num.trmt,
-    #                                                      num.resp.ctrl = num.resp.ctrl,
-    #                                                      num.resp.trmt = num.resp.trmt,
-    #                                                      sample.size = sample.size,
-    #                                                      estimator.type = estimator.type,
-    #                                                      treat.var = var,
-    #                                                      confidence.upper = ci_upper,
-    #                                                      confidence.lower = ci_lower,
-    #                                                      standard.error = standard.error,
-    #                                                      dir.benefit = input$dir.benefit,
-    #                                                      show=input$show,
-    #                                                      return.plot=FALSE,
-    #                                                      neutral.effect = neutral.effect,
-    #                                                      min.effect=min.effects[[i]]
-    #               )
-    #   
-    #   df <- rbind(df, data.frame("meaningful benefit"= signif(min.effects[[i]],3), conf.lack.meaningful.benefit=list.out$conf.lack.meaningful.benefit*100))
-    # }
     
     if (as.numeric(input$dir.benefit) == 0){
         phr_1 <- paste("Conf(","\u03b8", " < Threshold 1): ", round(cc$text$conf.benefit * 100, 3), "%")
@@ -501,17 +497,19 @@ server <- function(input, output) {
         phr_1 <- paste("Conf(", "\u03b8", " > Threshold 1): ", round(cc$text$conf.benefit * 100, 3), "%")
       }
     
+    # TODO: add text for conf(equiv)
+    
     output$benefit_text <- renderText({phr_1})
     output$benefit_text1 <- renderText({phr_1})
     
     if (as.numeric(input$dir.benefit) == 0){
-      if (input$min.effect.dir == 1){
+      if (input$dir.min.effect == 1){
         phr_2 <- paste("Conf(","\u03b8", " > Threshold 2): ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
       } else {
         phr_2 <- paste("Conf(","\u03b8", " < Threshold 2): ", round(cc$text$conf.meaningful.benefit * 100, 3), "%")
       }
     } else {
-      if (input$min.effect.dir == 1){
+      if (input$dir.min.effect == 1){
         phr_2 <- paste("Conf(","\u03b8", " > Threshold 2): ", round(cc$text$conf.meaningful.benefit * 100, 3), "%")
       } else {
         phr_2 <- paste("Conf(","\u03b8", " < Threshold 2): ", round(cc$text$conf.lack.meaningful.benefit * 100, 3), "%")
@@ -521,6 +519,17 @@ server <- function(input, output) {
     
     output$lmb_text <- renderText({ phr_2 })
     output$lmb_text1 <- renderText({ phr_2 })
+    
+    # equivalence text
+    if (input$conf.equiv == 1){
+      phr_3 <- paste0("Conf(Threshold 1 < ", "\u03b8", " < Threshold 2): ", round(cc$text$conf.equiv * 100, 3), "%")
+    } else {
+      phr_3 <- ""
+    }
+     
+    output$equiv_text <- renderText(
+      {phr_3}
+    )
     
     output$confPlot <- renderPlot({
       plot(cc$cdf, main = "Confidence Curves")
@@ -538,9 +547,7 @@ server <- function(input, output) {
              " The one-sided p-value is derived by subtracting Conf(","\u03b8", " < 0), here ",
              signif(cc$text$conf.benefit, 4), 
              ", from 1 and is displayed on the graph. The thresholds you have chosen are displayed in blue (Threshold 1)
-              and green (Threshold 2) and the confidence levels concerning these thresholds are shown in colour-coded text.
-             
-             ")
+              and green (Threshold 2), with arrows indicating direction of interest,  and corresponding confidence levels shown in colour-coded text.")
     })
     
     output$curvePlot <- renderPlot({
@@ -563,9 +570,18 @@ server <- function(input, output) {
         if (min.effect != input$min.effect){
           log.text = paste0("(", min.effect, " on the log scale)")
         } else (log.text = "")
-        if (input$min.effect.dir == 0){
+        if (input$dir.min.effect == 0){
           dir.text = "less than "
         } else (dir.text = "greater than ")
+      } else if (input$show == "EQUIV"){
+        thresh = '1 and 2'
+        thresh.num = paste0(min(input$min.effect, input$neutral.effect), " and ", 
+                            max(input$min.effect, input$neutral.effect))
+        dir.text = "between "
+        if (min.effect != input$min.effect){
+          log.text = paste0(" ( ", min(min.effect, neutral.effect), " and ",
+                            max(min.effect, neutral.effect), " on the log scale)")
+        } else (log.text = "")
       }
       paste0("The Confidence Density Function shows the frequentist Confidence that the treatment effect falls within a particular range of values. The area
              under the curve contained in a given interval (blue shading) gives the level of Confidence that the true effect lies within it. You have chosen to display
@@ -580,10 +596,17 @@ server <- function(input, output) {
       plot(cc$null, main = "Confidence Curves")
     })
     
-    output$lmb_table <- renderTable(df, digits=3, striped=TRUE, bordered=TRUE)
-    output$results_table_1 <- renderTable(cc$text[2:3], digits=3)
-    output$results_table_2 <- renderTable(cc$text[4:6], digits=3)
-    output$results_table_3 <- renderTable(cc$text[7:10], digits=3)
+    # output$lmb_table <- renderTable(df, digits=3, striped=TRUE, bordered=TRUE)
+    
+    # text output 
+    # only show equivalence if requested
+    output$results_table_1 <- renderTable(cc$text[2:3], digits=4)
+    if (input$conf.equiv == 1){
+      output$results_table_2 <- renderTable(cc$text[4:7], digits=4)
+    } else {
+      output$results_table_2 <- renderTable(cc$text[4:6], digits=4)
+    }
+    output$results_table_3 <- renderTable(cc$text[8:11], digits=4)
     
   })
 }

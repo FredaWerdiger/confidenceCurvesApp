@@ -78,18 +78,12 @@ ui <- fluidPage(
       # error if point estimate was not specified
       uiOutput("theta_error"),
       
-      # below is not in use
-      # radioButtons("dir.benefit", "Describe a positive treatment effect:",
-      #              choices=list("Lower is better"=0, "Higher is better"=1),
-      #               selected = 0, inline=FALSE),
-      # numericInput("lmb", "Define the smallest clinically  meaningful effect", 
-      #              value=0.1, min=-10, max=10),
       strong("DESCRIPTION OF OUTCOME MEASUREMENT SCALE"),
       uiOutput("summary_scale"),
       conditionalPanel(
         condition = "input.binaryOpt == 2",
-        h3("Error estimate"),
-        selectInput("errorType", "Select method of error estimation:",
+        h3("Precision estimate"),
+        selectInput("errorType", "Select method of precision estimation:",
                     choice=list("95% Confidence Interval"=1,
                                 "Standard Deviation (σ)"=2,
                                 "Standard error"=3),
@@ -112,7 +106,7 @@ ui <- fluidPage(
       uiOutput("error_error"),
       strong("DESCRIPTION OF POINT ESTIMATE"),
       uiOutput("summary_value"),
-      h3("Flexible Thresholds for any Treatment Eeffect"),
+      h3("Flexible Thresholds for any Treatment Effect"),
       h5("Here you can enter two thresholds of interest and select whether you want to express confidence
                    in the treatment effect being above or below these thresholds."),
       fluidRow(
@@ -195,6 +189,10 @@ ui <- fluidPage(
               ),
         tabPanel(
         "Confidence distribution plot",
+        HTML("<br><u>") ,
+        strong("CONFIDENCE IN SPECIFIED THRESHOLDS"),
+        HTML("</u>"),
+        HTML("<br>"),
         textOutput("benefit_text1"),
         textOutput("lmb_text1"),
         plotOutput("confPlot"),
@@ -215,11 +213,23 @@ ui <- fluidPage(
         ),
         tabPanel(
         "Confidence Curve",
-        plotOutput("confc")
+        plotOutput("confc"),
+        strong('INTERPRETATION'),
+        HTML("<p>This confidence curve is built from all two-sided confidence intervals, 
+        as opposed to one-sided intervals 
+        as with the confidence distribution. 
+        It can be used to get the traditional 95% confidence interval.</p>")
         ),
         tabPanel(
         "Null distribution plot",
-        plotOutput("nullPlot")
+        plotOutput("nullPlot"),
+        strong('INTERPRETATION'),
+        HTML("<p>From traditional frequentist analysis, the null distribution plot shows
+             how likely the observed treatment effect would be under the null hypothesis,
+             where there treatment effect is 0. The observed point estimate is normalised 
+             in the z-score. The p-value (shown on the graph) is the probability of the z-score 
+             or anything smaller under the null. The critical z-score for statistical significance
+             is normally 1.96.</p>")
       ),
       
 
@@ -317,7 +327,7 @@ server <- function(input, output) {
                  input$se)
     if (input$binaryOpt==2){
       span(paste0("Your point estimate is ", theta[[as.numeric(input$thetaType)]], ".",
-                  " Error is measured using a ", errorType[[as.numeric(input$errorType)]],
+                  " Precision is measured using a ", errorType[[as.numeric(input$errorType)]],
                   ", here ", errorValue[[as.numeric(input$errorType)]], "."), style = "color:blue")
       
     } else{

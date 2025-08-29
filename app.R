@@ -476,6 +476,22 @@ server <- function(input, output) {
                 max(neutral.effect, min.effect))
     } else {equiv = NULL}
 
+    # remove extraneous detail so defaults dont get in the way
+    if (input$errorType == 1){
+      var = NULL
+      sample.size = NULL
+      standard.error = NULL
+    } else if (input$errorType == 2){
+      standard.error = NULL
+      ci_lower = NULL
+      ci_upper = NULL
+    } else if (input$errorType == 3){
+      ci_lower = NULL
+      ci_upper = NULL
+      var = NULL
+      sample.size = NULL
+    }
+    
     # Compute confidence curves
 
     df <- data.frame()
@@ -506,8 +522,6 @@ server <- function(input, output) {
       } else {
         phr_1 <- paste("Conf(", "\u03b8", " > Threshold 1): ", round(cc$text$conf.benefit * 100, 3), "%")
       }
-    
-    # TODO: add text for conf(equiv)
     
     output$benefit_text <- renderText({phr_1})
     output$benefit_text1 <- renderText({phr_1})
